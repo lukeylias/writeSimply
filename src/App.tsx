@@ -193,25 +193,23 @@ function App() {
         />
       </main>
 
-      <FooterPanel
-        font={appState.font}
-        fontSize={appState.fontSize}
-        setFont={setFont}
-        setFontSize={setFontSize}
-        setNewSession={handleNewSession}
-        setTimer={handleSetTimer}
-        onShowHistory={toggleHistory}
-      />
+    <FooterPanel
+  font={appState.font}
+  fontSize={appState.fontSize}
+  setFont={setFont}
+  setFontSize={setFontSize}
+  setNewSession={handleNewSession}
+  setTimer={handleSetTimer}
+  onShowHistory={() => setShowHistory(true)}
+/>
 
-      {/* History Panel Overlay */}
-      {showHistory && (
-        <HistoryPanel
-          files={fileList}
-          onLoadFile={handleLoadFile}
-          onDeleteFile={handleDeleteFile}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
+<HistoryPanel
+  files={fileList}
+  onLoadFile={handleLoadFile}
+  onDeleteFile={handleDeleteFile}
+  onClose={() => setShowHistory(false)}
+  isOpen={showHistory}
+/>
     </div>
   );
 }

@@ -16,11 +16,49 @@
 }
 
 *{
-  min-height: 100%;
   background-color: var(--background);
   color: var(--text-color);
 }
 
 .caret-blue {
   caret-color: #3b82f6;
+}
+
+
+.app-container {
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Ensure main content stays accessible when panel is open */
+.main-content {
+  transition: margin-right 0.3s ease-in-out;
+}
+
+.main-content.with-panel-open {
+  margin-right: 20rem; /* Adjust based on your panel width */
+}
+
+/* Better overlay that doesn't block interactions completely */
+.overlay-transparent {
+  background: transparent;
+}
+
+/* Panel animations */
+.history-panel-enter {
+  transform: translateX(100%);
+}
+
+.history-panel-enter-active {
+  transform: translateX(0);
+  transition: transform 300ms ease-in-out;
+}
+
+.history-panel-exit {
+  transform: translateX(0);
+}
+
+.history-panel-exit-active {
+  transform: translateX(100%);
+  transition: transform 300ms ease-in-out;
 }
