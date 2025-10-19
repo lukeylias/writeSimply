@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root[data-theme="light"] {
+  --background: #fdfcfb;
+  --text-color: #222222;
+}
+
+:root[data-theme="dark"] {
+  --background: #1a1a1a;
+  --text-color: #f2f2f2;
+}
+
+:root[data-theme="sepia"] {
+  --background: #f4ecd8;
+  --text-color: #4b3f2f;
+}
+
+*{
+  min-height: 100%;
+  background-color: var(--background);
+  color: var(--text-color);
+}
+
+.caret-blue {
+  caret-color: #3b82f6;
+}

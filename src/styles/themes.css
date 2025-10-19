@@ -1,0 +1,22 @@
+:root {
+  --border-color: #e5e5e5;
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --active-bg: rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme="dark"] {
+  --border-color: #404040;
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --active-bg: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="sepia"] {
+  --border-color: #d4c4a8;
+  --hover-bg: rgba(91, 79, 61, 0.05);
+  --active-bg: rgba(91, 79, 61, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
