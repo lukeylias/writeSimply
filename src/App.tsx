@@ -29,6 +29,20 @@ const DEFAULT_THEME = "light";
 const DEFAULT_FONT = "serif";
 const DEFAULT_FONT_SIZE = 20;
 
+// Dummy data for testing
+const DUMMY_FILES = [
+  "Creative Writing Session - Nov 2024",
+  "Project Documentation Draft",
+  "Morning Journal Entry",
+  "Short Story - The Lost City",
+  "Poetry Collection Ideas",
+  "Blog Post - Productivity Tips",
+  "Novel Chapter 1 Draft",
+  "Meeting Notes - Team Sync",
+  "Personal Reflections",
+  "Technical Documentation"
+];
+
 function App() {
   const [appState, setAppState] = useState<AppState>(() => {
     try {
@@ -56,6 +70,7 @@ function App() {
 
   const [showHistory, setShowHistory] = useState(false);
   const [fileList, setFileList] = useState<string[]>([]);
+  const [useDummyData, setUseDummyData] = useState(true); // Toggle for dummy data
 
   // Save preferences to localStorage
   useEffect(() => {
@@ -105,7 +120,8 @@ function App() {
       console.log("Save result:", result);
       alert("File saved successfully!");
       
-      // Refresh file list
+      // Refresh file list and switch to real data
+      setUseDummyData(false);
       refreshFileList();
     } catch (error) {
       console.error("Error saving session:", error);
@@ -118,14 +134,25 @@ function App() {
     try {
       const files = await invoke<string[]>("list_files");
       setFileList(files);
+      setUseDummyData(files.length === 0); // Use dummy data only if no real files
     } catch (error) {
       console.error("Error loading file list:", error);
+      // If there's an error, fall back to dummy data
+      setUseDummyData(true);
     }
   }, []);
 
   // Load session from file
   const handleLoadFile = useCallback(async (fileName: string) => {
     try {
+      // If using dummy data, just show an alert
+      if (useDummyData) {
+        alert(`Loading dummy file: ${fileName}\n\nThis is a demo. In a real app, this would load your saved session.`);
+        setShowHistory(false);
+        return;
+      }
+
+      // Real file loading logic
       const file = await invoke<WritingFile>("load_file", { name: fileName });
       
       setAppState(prev => ({
@@ -142,11 +169,21 @@ function App() {
       console.error("Error loading file:", error);
       alert("Error loading file: " + error);
     }
-  }, []);
+  }, [useDummyData]);
 
   // Delete file
   const handleDeleteFile = useCallback(async (fileName: string) => {
     try {
+      if (useDummyData) {
+        if (confirm(`Are you sure you want to delete "${fileName}"?`)) {
+          // Remove from dummy data
+          setFileList(prev => prev.filter(file => file !== fileName));
+          alert(`Dummy file "${fileName}" deleted.\n\nIn a real app, this would permanently delete the file.`);
+        }
+        return;
+      }
+
+      // Real file deletion logic
       if (confirm(`Are you sure you want to delete "${fileName}"?`)) {
         await invoke<string>("delete_file", { name: fileName });
         refreshFileList();
@@ -156,7 +193,7 @@ function App() {
       console.error("Error deleting file:", error);
       alert("Error deleting file: " + error);
     }
-  }, [refreshFileList]);
+  }, [useDummyData, refreshFileList]);
 
   const handleNewSession = useCallback(() => {
     setEditorContent("");
@@ -169,11 +206,19 @@ function App() {
   const toggleHistory = useCallback(() => {
     setShowHistory(prev => {
       if (!prev) {
-        refreshFileList();
+        // When opening history, load data
+        if (useDummyData) {
+          setFileList(DUMMY_FILES);
+        } else {
+          refreshFileList();
+        }
       }
       return !prev;
     });
-  }, [refreshFileList]);
+  }, [useDummyData, refreshFileList]);
+
+  // Get the current files to display
+  const currentFiles = useDummyData ? DUMMY_FILES : fileList;
 
   return (
     <div className="app-container min-h-screen flex flex-col bg-[var(--background)] text-[var(--text-color)] transition-colors duration-300 relative">
@@ -193,23 +238,27 @@ function App() {
         />
       </main>
 
-    <FooterPanel
-  font={appState.font}
-  fontSize={appState.fontSize}
-  setFont={setFont}
-  setFontSize={setFontSize}
-  setNewSession={handleNewSession}
-  setTimer={handleSetTimer}
-  onShowHistory={() => setShowHistory(true)}
-/>
+      <FooterPanel
+        font={appState.font}
+        fontSize={appState.fontSize}
+        setFont={setFont}
+        setFontSize={setFontSize}
+        setNewSession={handleNewSession}
+        setTimer={handleSetTimer}
+        onShowHistory={toggleHistory}
+      />
 
-<HistoryPanel
-  files={fileList}
-  onLoadFile={handleLoadFile}
-  onDeleteFile={handleDeleteFile}
-  onClose={() => setShowHistory(false)}
-  isOpen={showHistory}
-/>
+      {/* History Panel Overlay */}
+      {showHistory && (
+        <HistoryPanel
+          files={currentFiles}
+          onLoadFile={handleLoadFile}
+          onDeleteFile={handleDeleteFile}
+          onClose={() => setShowHistory(false)}
+          isOpen={showHistory}
+        />
+      )}
+
     </div>
   );
 }

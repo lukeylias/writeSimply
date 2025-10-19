@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { GoHistory } from "react-icons/go";
 
 // Constants
 const FONTS = ["Serif", "Sans-serif", "Monospace"] as const;
@@ -112,18 +113,18 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
         {/* Font size with scroll only */}
         <div 
           onWheel={handleFontScroll}
-          className="cursor-pointer select-none min-w-[3rem] text-center hover:opacity-70 transition-opacity"
+          className="cursor-pointer select-none min-w-[3rem] text-center hover:opacity-50 transition-opacity"
           title="Scroll to change font size"
         >
           {fontSize}px
         </div>
 
         {/* Font family selection */}
-        <div className="flex gap-3">
+        <div className="flex gap-4">
           {FONTS.map((f) => (
             <p
               key={f}
-              className={`cursor-pointer select-none hover:opacity-70 transition-opacity ${
+              className={`cursor-pointer select-none hover:opacity-50 transition-opacity ${
                 f === font ? "font-bold underline" : ""
               }`}
               onClick={() => setFont(f)}
@@ -131,8 +132,9 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
               {f}
             </p>
           ))}
+          <span className="opacity-50">•</span>
           <p
-            className="cursor-pointer select-none hover:opacity-70 transition-opacity italic"
+            className="cursor-pointer select-none hover:opacity-50 transition-opacity italic"
             onClick={pickRandomFont}
             title="Pick random font"
           >
@@ -145,7 +147,7 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
       <div className="flex items-center gap-6">
         {/* Timer */}
         <div
-          className="cursor-pointer hover:opacity-70 select-none transition-opacity"
+          className="cursor-pointer hover:opacity-50 select-none transition-opacity"
           onWheel={handleTimerScroll}
           onClick={toggleTimer}
           title="Click to start/stop, scroll to adjust time"
@@ -154,17 +156,17 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          <p className="cursor-pointer hover:opacity-70 transition-opacity" onClick={setNewSession}>
+          <p className="cursor-pointer hover:opacity-50 transition-opacity" onClick={setNewSession}>
             New
           </p>
           <span className="opacity-50">•</span>
-          <p className="cursor-pointer hover:opacity-70 transition-opacity">Full Screen</p>
+          <p className="cursor-pointer hover:opacity-50 transition-opacity">Full Screen</p>
           <span className="opacity-50">•</span>
           <p 
-            className="cursor-pointer hover:opacity-70 transition-opacity"
+            className="cursor-pointer hover:opacity-50 transition-opacity"
             onClick={onShowHistory}
           >
-            History
+           <GoHistory size={18} />
           </p>
         </div>
       </div>
