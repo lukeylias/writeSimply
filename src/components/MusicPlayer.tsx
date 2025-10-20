@@ -1,173 +1,427 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Music, Volume2, List, Repeat } from 'lucide-react';
+import { useState, useEffect } from "react";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  FolderOpen,
+  Music,
+  List,
+  Repeat,
+} from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readDir } from "@tauri-apps/plugin-fs";
+import { message } from "@tauri-apps/plugin-dialog";
+import { basename } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
 
 interface MusicPlayerProps {
   onClose: () => void;
 }
 
+interface Song {
+  name: string;
+  path: string;
+}
+
 export default function MusicPlayer({ onClose }: MusicPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(70);
-  const [showList, setShowList] = useState(false);
-  const [currentSong, setCurrentSong] = useState(0);
-  const [isRepeat, setIsRepeat] = useState(false); // Repeat state
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [currentSongIndex, setCurrentSongIndex] = useState(0);
+  const [isRepeat, setIsRepeat] = useState(false);
+  const [folderPath, setFolderPath] = useState<string | null>(null);
+  const [showPlaylist, setShowPlaylist] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const totalTime = 210; // seconds
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const songs = [
-    { title: 'Midnight Dreams', artist: 'Aurora Waves' },
-    { title: 'Sunset Boulevard', artist: 'Luna Sky' },
-    { title: 'Ocean Waves', artist: 'Blue Horizon' },
-    { title: 'City Lights', artist: 'Neon Night' },
-    { title: 'Starlight', artist: 'Cosmic Beats' },
-  ];
+  // 🎵 Select and load music folder using Tauri
+  const handleSelectFolder = async () => {
+    try {
+      setIsLoading(true);
+      
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Select your music folder",
+      });
 
-  // Dummy playback effect
-  useEffect(() => {
-    if (isPlaying) {
-      intervalRef.current = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            if (isRepeat) return 0; // loop if repeat
-            clearInterval(intervalRef.current!);
-            return 100;
-          }
-          return prev + 0.5;
+      if (!selected || Array.isArray(selected)) {
+        await message("No folder selected.", { title: "Music Player", kind: "info" });
+        setIsLoading(false);
+        return;
+      }
+
+      setFolderPath(selected);
+      console.log("Selected folder:", selected);
+
+      // Read directory entries
+      const entries = await readDir(selected);
+      console.log("Folder entries:", entries);
+
+      // Filter audio files
+      const audioFiles = entries.filter((entry: any) => {
+        const name = entry.name || entry.path?.split(/[\\/]/).pop() || '';
+        const isAudioFile = /\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(name);
+        console.log("Checking file:", name, "is audio:", isAudioFile);
+        return isAudioFile;
+      });
+
+      console.log("Found audio files:", audioFiles.length);
+
+      if (audioFiles.length === 0) {
+        await message("No audio files found in this folder! Supported formats: MP3, WAV, OGG, M4A, FLAC, AAC", {
+          title: "Music Player",
+          kind: "warning",
         });
-      }, 200);
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+        setIsLoading(false);
+        return;
+      }
+
+      // Create song objects
+      const loadedSongs: Song[] = await Promise.all(
+        audioFiles.map(async (entry: any) => {
+          const path = entry.path || `${selected}/${entry.name}`;
+          const name = entry.name || await basename(path).catch(() => 'Unknown');
+          const cleanName = name.replace(/\.[^/.]+$/, ""); // Remove file extension
+          
+          return {
+            name: cleanName,
+            path: path,
+          };
+        })
+      );
+
+      console.log("Loaded songs:", loadedSongs);
+      setSongs(loadedSongs);
+      setCurrentSongIndex(0);
+      setIsPlaying(false);
+
+    } catch (error) {
+      console.error("Folder selection failed:", error);
+      await message(`Error: ${error}`, {
+        title: "Error",
+        kind: "error",
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isPlaying, isRepeat]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const currentTime = Math.floor((progress / 100) * totalTime);
+  // Check if audio is still playing
+  const checkAudioStatus = async () => {
+    try {
+      const stillPlaying = await invoke<boolean>('is_audio_playing');
+      if (!stillPlaying && isPlaying) {
+        // Song finished naturally
+        console.log("Song finished naturally, moving to next");
+        handleNextSong();
+      }
+      return stillPlaying;
+    } catch (error) {
+      console.error("Error checking audio status:", error);
+      return false;
+    }
+  };
+
+  // Play audio using Tauri command
+  const playAudio = async (path: string) => {
+    try {
+      await invoke('play_audio', { path });
+      setIsPlaying(true);
+      console.log("Playing:", path);
+      
+      // Start progress simulation
+      startProgressSimulation();
+    } catch (error) {
+      console.error("Play audio error:", error);
+      setIsPlaying(false);
+      await message(`Failed to play audio: ${error}`, {
+        title: "Playback Error",
+        kind: "error",
+      });
+    }
+  };
+
+  // Stop audio using Tauri command
+  const stopAudio = async () => {
+    try {
+      await invoke('stop_audio');
+      setIsPlaying(false);
+      console.log("Audio stopped");
+    } catch (error) {
+      console.error("Stop audio error:", error);
+    }
+  };
+
+  // Simulate progress for native playback
+  const startProgressSimulation = () => {
+    let progressValue = 0;
+    const interval = setInterval(() => {
+      if (!isPlaying) {
+        clearInterval(interval);
+        return;
+      }
+      
+      progressValue += 0.5;
+      if (progressValue >= 100) {
+        progressValue = 100;
+        clearInterval(interval);
+      }
+    }, 500);
+  };
+
+  // Handle next song (with completion)
+  const handleNextSong = () => {
+    if (songs.length === 0) return;
+    
+    const nextIndex = currentSongIndex + 1 < songs.length ? currentSongIndex + 1 : 0;
+    setCurrentSongIndex(nextIndex);
+    
+    // Auto-play next song if repeat is enabled or if we're not at the end
+    if (isPlaying && (isRepeat || nextIndex !== 0)) {
+      setTimeout(async () => {
+        await playAudio(songs[nextIndex].path);
+      }, 500);
+    } else if (nextIndex === 0 && !isRepeat) {
+      // Reached end of playlist and repeat is off
+      setIsPlaying(false);
+    }
+  };
+
+  // Handle play/pause
+  const handlePlayPause = async () => {
+    if (songs.length === 0) {
+      message("No songs loaded", { title: "Info", kind: "info" });
+      return;
+    }
+
+    const currentSong = songs[currentSongIndex];
+    if (!currentSong) return;
+
+    if (isPlaying) {
+      await stopAudio();
+    } else {
+      await playAudio(currentSong.path);
+    }
+  };
+
+  // Handle next song (user action)
+  const handleNext = async () => {
+    if (songs.length === 0) return;
+    
+    const wasPlaying = isPlaying;
+    if (wasPlaying) {
+      await stopAudio();
+    }
+    
+    const nextIndex = currentSongIndex + 1 < songs.length ? currentSongIndex + 1 : 0;
+    setCurrentSongIndex(nextIndex);
+    
+    if (wasPlaying) {
+      setTimeout(async () => {
+        await playAudio(songs[nextIndex].path);
+      }, 500);
+    }
+  };
+
+  // Handle previous song
+  const handlePrev = async () => {
+    if (songs.length === 0) return;
+    
+    const wasPlaying = isPlaying;
+    if (wasPlaying) {
+      await stopAudio();
+    }
+    
+    const prevIndex = currentSongIndex - 1 >= 0 ? currentSongIndex - 1 : songs.length - 1;
+    setCurrentSongIndex(prevIndex);
+    
+    if (wasPlaying) {
+      setTimeout(async () => {
+        await playAudio(songs[prevIndex].path);
+      }, 500);
+    }
+  };
+
+  // Check audio status periodically
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(async () => {
+      const stillPlaying = await checkAudioStatus();
+      if (!stillPlaying) {
+        setIsPlaying(false);
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [isPlaying, currentSongIndex]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      stopAudio().catch(console.error);
+    };
+  }, []);
+
+  if (!folderPath) {
+    return (
+      <div className="fixed top-20 right-8 z-50 w-80 bg-black/90 backdrop-blur-md rounded-xl p-6 text-center shadow-2xl border border-white/20">
+        <Music className="w-12 h-12 text-white/50 mx-auto mb-4" />
+        <p className="text-white mb-2">No music folder selected</p>
+        <p className="text-white/60 text-sm mb-4">Select a folder containing your music files</p>
+        <button
+          onClick={handleSelectFolder}
+          disabled={isLoading}
+          className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 rounded-lg text-white transition flex items-center gap-2 mx-auto"
+        >
+          <FolderOpen size={16} />
+          {isLoading ? "Scanning..." : "Select Music Folder"}
+        </button>
+      </div>
+    );
+  }
+
+  const currentSong = songs[currentSongIndex];
 
   return (
-    <div className="fixed top-20 right-8 z-50 w-72 bg-black/80 backdrop-blur-md rounded-xl p-4 shadow-2xl border border-white/20">
-
-      {/* Song Info */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-12 h-12 bg-blue-500/30 rounded-lg flex items-center justify-center">
-          <Music className="w-6 h-6 text-white" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-white font-bold text-sm">{songs[currentSong].title}</h3>
-          <p className="text-white/70 text-xs">{songs[currentSong].artist}</p>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="mb-3">
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={progress}
-          onChange={(e) => setProgress(parseInt(e.target.value))}
-          style={{
-            background: `linear-gradient(to right, #4ade80 0%, #4ade80 ${progress}%, #6b7280 ${progress}%, #6b7280 100%)`
-          }}
-          className="w-full h-1 rounded-full appearance-none cursor-pointer
-            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gray-300
-            [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-gray-300
-          "
-        />
-        <div className="flex justify-between text-white text-xs mt-1">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(totalTime)}</span>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center justify-between">
+    <div className="fixed top-20 right-8 z-50 w-80 bg-black/90 backdrop-blur-md rounded-xl p-4 shadow-2xl border border-white/20">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <button className="text-white hover:scale-110 transition-transform p-1">
-            <SkipBack className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="text-white hover:scale-110 transition-transform p-2 bg-white/20 rounded-full"
-          >
-            {isPlaying ? <Pause className="w-4 h-4" fill="white" /> : <Play className="w-4 h-4" fill="white" />}
-          </button>
-          <button className="text-white hover:scale-110 transition-transform p-1">
-            <SkipForward className="w-4 h-4" />
-          </button>
           <button
-            onClick={() => setShowList(prev => !prev)}
-            className="text-white hover:scale-110 transition-transform p-1"
-            title="Toggle Playlist"
+            onClick={handleSelectFolder}
+            className="text-white hover:text-green-400 transition-colors p-1"
+            title="Change music folder"
           >
-            <List className="w-4 h-4" />
+            <FolderOpen size={16} />
           </button>
-          <button
-            onClick={() => setIsRepeat(prev => !prev)}
-            className={`hover:scale-110 transition-transform p-1 ${isRepeat ? 'text-green-400' : 'text-white'}`}
-            title="Repeat"
-          >
-            <Repeat className="w-4 h-4" />
-          </button>
+          <div>
+            <h3 className="text-white font-bold text-sm">Music Player</h3>
+            <p className="text-white/60 text-xs truncate max-w-[180px]">
+              {folderPath.split(/[\\/]/).pop()}
+            </p>
+          </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Volume2 className="w-4 h-4 text-white" />
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={volume}
-            onChange={(e) => setVolume(parseInt(e.target.value))}
-            style={{
-              background: `linear-gradient(to right, #4ade80 0%, #4ade80 ${volume}%, #6b7280 ${volume}%, #6b7280 100%)`
-            }}
-            className="w-16 h-1 rounded-full appearance-none cursor-pointer
-              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gray-300
-              [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-gray-300
-            "
-          />
-        </div>
+        <button
+          onClick={onClose}
+          className="text-white/70 hover:text-white transition-colors text-lg"
+          title="Close player (music continues in background)"
+        >
+          ×
+        </button>
       </div>
 
-      {/* Playlist */}
-      {showList && (
-        <div className="mt-3 bg-gray-900/90 rounded-lg max-h-40 overflow-y-auto p-2 space-y-2 hide-scrollbar">
-          {songs.map((song, index) => (
-            <div
-              key={index}
-              className={`flex justify-between items-center p-2 rounded hover:bg-green-500/20 cursor-pointer transition-colors ${
-                index === currentSong ? 'bg-green-500/30 font-semibold' : ''
-              }`}
-              onClick={() => setCurrentSong(index)}
-            >
-              <div>
-                <p className="text-white text-sm truncate">{song.title}</p>
-                <p className="text-white/70 text-xs truncate">{song.artist}</p>
-              </div>
-              <span className="text-white/70 text-xs">{index + 1}</span>
+      {songs.length === 0 ? (
+        <div className="text-center py-8">
+          <Music className="w-12 h-12 text-white/50 mx-auto mb-3" />
+          <p className="text-white/70 text-sm mb-3">No music files found</p>
+          <button
+            onClick={handleSelectFolder}
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+          >
+            Select Different Folder
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Song Info */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+              <Music className="w-6 h-6 text-white" />
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-white font-bold text-sm truncate">
+                {currentSong?.name || "Unknown"}
+              </h3>
+              <p className="text-white/60 text-xs">
+                {currentSongIndex + 1} of {songs.length}
+                {isPlaying && "Playing"}
+              </p>
+            </div>
+          </div>
 
-      {/* Scrollbar hide style */}
-      <style>
-        {`
-          .hide-scrollbar::-webkit-scrollbar { display: none; }
-          .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        `}
-      </style>
+          {/* Controls */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handlePrev}
+                className="text-white hover:scale-110 transition-transform p-1"
+                disabled={songs.length === 0}
+              >
+                <SkipBack size={18} />
+              </button>
+              <button 
+                onClick={handlePlayPause}
+                className="text-white hover:scale-110 transition-transform p-2 bg-white/20 rounded-full"
+                disabled={songs.length === 0}
+              >
+                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+              </button>
+              <button 
+                onClick={handleNext}
+                className="text-white hover:scale-110 transition-transform p-1"
+                disabled={songs.length === 0}
+              >
+                <SkipForward size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsRepeat(!isRepeat)}
+                className={`p-1 ${isRepeat ? 'text-green-400' : 'text-white'}`}
+                title="Repeat"
+              >
+                <Repeat size={16} />
+              </button>
+              <button
+                onClick={() => setShowPlaylist(!showPlaylist)}
+                className="text-white p-1"
+                title="Playlist"
+              >
+                <List size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Playlist */}
+          {showPlaylist && (
+            <div className="mt-3 bg-gray-900/90 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+              {songs.map((song, index) => (
+                <div
+                  key={index}
+                  onClick={async () => {
+                    const wasPlaying = isPlaying;
+                    if (wasPlaying) {
+                      await stopAudio();
+                    }
+                    setCurrentSongIndex(index);
+                    if (wasPlaying) {
+                      setTimeout(async () => {
+                        await playAudio(song.path);
+                      }, 500);
+                    }
+                  }}
+                  className={`flex items-center p-2 rounded cursor-pointer transition-colors ${
+                    index === currentSongIndex 
+                      ? 'bg-green-500/30 text-white' 
+                      : 'text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">
+                      {song.name}
+                      {index === currentSongIndex && isPlaying && " ▶"}
+                    </p>
+                  </div>
+                  <span className="text-xs text-white/60">{index + 1}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

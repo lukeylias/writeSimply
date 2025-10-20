@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { GoHistory } from "react-icons/go";
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
 
 // Constants
 const FONTS = ["Serif", "Sans-serif", "Monospace"] as const;
@@ -52,6 +54,18 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
     const randomFont = RANDOM_FONTS[Math.floor(Math.random() * RANDOM_FONTS.length)];
     setFont(randomFont);
   }, [setFont]);
+
+const toggleFullScreen = async () => {
+  const window = await getCurrentWindow();
+  console.log("Window:", window); // should not be undefined
+
+  const isFullscreen = await window.isFullscreen();
+  console.log("Was fullscreen:", isFullscreen);
+
+  await window.setFullscreen(!isFullscreen);
+  console.log("Now fullscreen:", !isFullscreen);
+};
+
 
   // Timer logic
   useEffect(() => {
@@ -160,7 +174,9 @@ const FooterPanel: React.FC<FooterPanelProps> = ({
             New
           </p>
           <span className="opacity-50">•</span>
-          <p className="cursor-pointer hover:opacity-50 transition-opacity">Full Screen</p>
+          <p className="cursor-pointer hover:opacity-50 transition-opacity"
+          onClick={toggleFullScreen}
+          >Full Screen</p>
           <span className="opacity-50">•</span>
           <p 
             className="cursor-pointer hover:opacity-50 transition-opacity"

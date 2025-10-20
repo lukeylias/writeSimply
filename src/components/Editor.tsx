@@ -77,7 +77,7 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   return (
-    <div className="flex justify-center items-center h-[88vh] px-4">
+    <div className="flex justify-center items-center px-4 overflow-hidden">
       <textarea
         ref={textareaRef}
         value={localContent}

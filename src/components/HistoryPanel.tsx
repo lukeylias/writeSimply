@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { RxCross2, RxFileText } from "react-icons/rx";
 
 interface HistoryPanelProps {
@@ -14,10 +14,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
     onLoadFile,
     onDeleteFile,
     onClose,
-    isOpen,
 }) => {
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
-
     const handleLoadFile = (fileName: string) => {
         onLoadFile(fileName);
         onClose();

@@ -27,8 +27,12 @@
 
 .app-container {
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden; /* disable scrollbars */
+  height: 100vh;    /* full window height */
+  display: flex;
+  flex-direction: column;
 }
+
 
 /* Ensure main content stays accessible when panel is open */
 .main-content {
@@ -42,25 +46,6 @@
 /* Better overlay that doesn't block interactions completely */
 .overlay-transparent {
   background: transparent;
-}
-
-/* Panel animations */
-.history-panel-enter {
-  transform: translateX(100%);
-}
-
-.history-panel-enter-active {
-  transform: translateX(0);
-  transition: transform 300ms ease-in-out;
-}
-
-.history-panel-exit {
-  transform: translateX(0);
-}
-
-.history-panel-exit-active {
-  transform: translateX(100%);
-  transition: transform 300ms ease-in-out;
 }
 
 /* Add these styles to your CSS file */
@@ -107,4 +92,11 @@
 /* Make sure the overlay has proper styling */
 .fixed.inset-0 {
   background: transparent; /* Or use a very light overlay */
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
