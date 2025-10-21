@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import "./styles/global.css";
-import "./styles/themes.css";
 import "./App.css";
 
 import Editor from "./components/Editor";

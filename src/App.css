@@ -20,8 +20,15 @@
   color: var(--text-color);
 }
 
+/* In your global CSS file */
+.thick-cursor {
+  caret-width: 2px;
+  caret-color: #3b82f6; /* Optional: change cursor color */
+}
+
 .caret-blue {
   caret-color: #3b82f6;
+  caret-width: 2px;
 }
 
 
