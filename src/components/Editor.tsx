@@ -95,7 +95,6 @@ const Editor: React.FC<EditorProps> = ({
           fontFamily: font,
           fontSize: `${fontSize}px`,
           lineHeight: "1.6",
-          caretWidth: "2px"
         }}
         placeholder={placeholder}
         spellCheck={false}
