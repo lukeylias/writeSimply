@@ -3,7 +3,7 @@ name: Build macOS App
 on:
   push:
     branches:
-      - main   # or your branch
+      - main
 
 jobs:
   build-macos:
@@ -25,8 +25,8 @@ jobs:
         run: npm run tori build
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4   
         with:
           name: macOS-dmg
-          path: dist/*.dmg   # adjust path if TORI outputs .dmg elsewhere
+          path: dist/*.dmg
 
