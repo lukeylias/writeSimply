@@ -112,11 +112,10 @@ const removeNotification = (id: number) => {
       let fileName = currentFileName;
 
       // Ask for name only if it's a new file
-      if (!fileName) {
-        fileName = prompt("Enter a name for your writing session:");
-        if (!fileName) return;
-        setCurrentFileName(fileName);
-      }
+     if (!fileName || fileName.trim() === "") {
+      addNotification("error", "Enter file name please!");
+      return;
+    }
 
       const file: WritingFile = {
         name: fileName,
@@ -210,7 +209,7 @@ const removeNotification = (id: number) => {
         onRename={handleRename}
       />
       
-      <main className="flex-1">
+      
         <Editor 
           font={appState.font} 
           fontSize={appState.fontSize} 
@@ -218,7 +217,7 @@ const removeNotification = (id: number) => {
           content={appState.editorContent}
           onContentChange={setEditorContent}
         />
-      </main>
+     
 
       <FooterPanel
         font={appState.font}
