@@ -1,3 +1,6 @@
+
+![show](https://github.com/user-attachments/assets/fd7f2ed1-5855-465c-a3b7-36df24f24b8d)
+
 writeSimply is a minimal desktop app where you can write freely, no subscriptions, no clutter, just pure writing
 I know there are many writing apps out there, but I wanted to make my own, so I built this one
 If you like simple tools or want to learn Tauri, you might enjoy it too
