@@ -8,7 +8,6 @@ import Navbar from "./components/Navbar";
 import HistoryPanel from "./components/HistoryPanel";
 import NotificationContainer from "./components/NotificationContainer";
 
-
 // Types for writing session
 interface WritingFile {
   name: string;
@@ -23,11 +22,12 @@ interface AppState {
   font: string;
   fontSize: number;
   editorContent: string;
+  viewMode: "markdown" | "preview";
 }
 
 const DEFAULT_THEME = "light";
-const DEFAULT_FONT = "serif";
-const DEFAULT_FONT_SIZE = 20;
+const DEFAULT_FONT = "nunito, sans-serif";
+const DEFAULT_FONT_SIZE = 18;
 
 function App() {
   const [appState, setAppState] = useState<AppState>(() => {
@@ -36,11 +36,14 @@ function App() {
       const savedFont = localStorage.getItem("font");
       const savedFontSize = localStorage.getItem("fontSize");
       const savedContent = localStorage.getItem("editorContent");
+      const savedViewMode = localStorage.getItem("viewMode");
+
       return {
         theme: savedTheme || DEFAULT_THEME,
         font: savedFont || DEFAULT_FONT,
         fontSize: savedFontSize ? parseInt(savedFontSize) : DEFAULT_FONT_SIZE,
         editorContent: savedContent || "",
+        viewMode: (savedViewMode as "markdown" | "preview") || "preview", // ← Ensure it's always set
       };
     } catch (error) {
       console.error("Error loading saved preferences:", error);
@@ -49,28 +52,37 @@ function App() {
         font: DEFAULT_FONT,
         fontSize: DEFAULT_FONT_SIZE,
         editorContent: "",
+        viewMode: "preview", // ← Always provide a default
       };
     }
   });
+
+  const setViewMode = useCallback(
+    (viewMode: "markdown" | "preview") =>
+      setAppState((prev) => ({ ...prev, viewMode })),
+    []
+  );
 
   const [showHistory, setShowHistory] = useState(false);
   const [fileList, setFileList] = useState<string[]>([]);
   const [isSaved, setIsSaved] = useState(true);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
   // 🧠 Notification state
-const [notifications, setNotifications] = useState<
-  { id: number; type: "success" | "error" | "info"; message: string }[]
->([]);
+  const [notifications, setNotifications] = useState<
+    { id: number; type: "success" | "error" | "info"; message: string }[]
+  >([]);
 
-const addNotification = (type: "success" | "error" | "info", message: string) => {
-  const id = Date.now();
-  setNotifications((prev) => [...prev, { id, type, message }]);
-};
+  const addNotification = (
+    type: "success" | "error" | "info",
+    message: string
+  ) => {
+    const id = Date.now();
+    setNotifications((prev) => [...prev, { id, type, message }]);
+  };
 
-const removeNotification = (id: number) => {
-  setNotifications((prev) => prev.filter((n) => n.id !== id));
-};
-
+  const removeNotification = (id: number) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   // Save preferences to localStorage
   useEffect(() => {
@@ -86,13 +98,19 @@ const removeNotification = (id: number) => {
   }, [appState]);
 
   // State updaters
-  const setTheme = useCallback((theme: string) => setAppState(prev => ({ ...prev, theme })), []);
-  const setFont = useCallback((font: string) => setAppState(prev => ({ ...prev, font })), []);
-  const setFontSize = useCallback((fontSize: number) => setAppState(prev => ({ ...prev, fontSize })), []);
-  
+  const setTheme = useCallback(
+    (theme: string) => setAppState((prev) => ({ ...prev, theme })),
+    []
+  );
+
+  const setFontSize = useCallback(
+    (fontSize: number) => setAppState((prev) => ({ ...prev, fontSize })),
+    []
+  );
+
   // Track editor changes and mark unsaved
   const setEditorContent = useCallback((content: string) => {
-    setAppState(prev => ({ ...prev, editorContent: content }));
+    setAppState((prev) => ({ ...prev, editorContent: content }));
     setIsSaved(false); // mark unsaved whenever content changes
   }, []);
 
@@ -112,10 +130,10 @@ const removeNotification = (id: number) => {
       let fileName = currentFileName;
 
       // Ask for name only if it's a new file
-     if (!fileName || fileName.trim() === "") {
-      addNotification("error", "Enter file name please!");
-      return;
-    }
+      if (!fileName || fileName.trim() === "") {
+        addNotification("error", "Enter file name please!");
+        return;
+      }
 
       const file: WritingFile = {
         name: fileName,
@@ -140,7 +158,7 @@ const removeNotification = (id: number) => {
   const handleLoadFile = useCallback(async (fileName: string) => {
     try {
       const file = await invoke<WritingFile>("load_file", { name: fileName });
-      setAppState(prev => ({
+      setAppState((prev) => ({
         ...prev,
         editorContent: file.text,
         font: file.font,
@@ -158,23 +176,26 @@ const removeNotification = (id: number) => {
   }, []);
 
   // Delete file
-  const handleDeleteFile = useCallback(async (fileName: string) => {
-    try {
-      if (confirm(`Are you sure you want to delete "${fileName}"?`)) {
-        await invoke<string>("delete_file", { name: fileName });
-        if (currentFileName === fileName) {
-          setCurrentFileName(null);
-          setIsSaved(true);
-          setEditorContent(""); // reset editor
+  const handleDeleteFile = useCallback(
+    async (fileName: string) => {
+      try {
+        if (confirm(`Are you sure you want to delete "${fileName}"?`)) {
+          await invoke<string>("delete_file", { name: fileName });
+          if (currentFileName === fileName) {
+            setCurrentFileName(null);
+            setIsSaved(true);
+            setEditorContent(""); // reset editor
+          }
+          refreshFileList();
+          addNotification("info", "File deleted successfully.");
         }
-        refreshFileList();
-        addNotification("info", "File deleted successfully.");
+      } catch (error) {
+        console.error("Error deleting file:", error);
+        addNotification("error", "Error deleting file: " + String(error));
       }
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      addNotification("error", "Error deleting file: " + String(error));
-    }
-  }, [currentFileName, refreshFileList, setEditorContent]);
+    },
+    [currentFileName, refreshFileList, setEditorContent]
+  );
 
   // New session
   const handleNewSession = useCallback(() => {
@@ -188,7 +209,7 @@ const removeNotification = (id: number) => {
   }, []);
 
   const toggleHistory = useCallback(() => {
-    setShowHistory(prev => {
+    setShowHistory((prev) => {
       if (!prev) refreshFileList();
       return !prev;
     });
@@ -200,33 +221,33 @@ const removeNotification = (id: number) => {
 
   return (
     <div className="app-container min-h-screen flex flex-col bg-[var(--background)] text-[var(--text-color)] transition-colors duration-300 relative">
-      <Navbar 
-        theme={appState.theme} 
+      <Navbar
+        theme={appState.theme}
         setTheme={setTheme}
         onSave={handleSave}
         currentFileName={currentFileName}
         isSaved={isSaved}
         onRename={handleRename}
       />
-      
-      
-        <Editor 
-          font={appState.font} 
-          fontSize={appState.fontSize} 
-          theme={appState.theme}
-          content={appState.editorContent}
-          onContentChange={setEditorContent}
-        />
-     
 
-      <FooterPanel
+      <Editor
         font={appState.font}
         fontSize={appState.fontSize}
-        setFont={setFont}
+        theme={appState.theme}
+        content={appState.editorContent}
+        onContentChange={setEditorContent}
+        onSave={handleSave}
+        viewMode={appState.viewMode}
+      />
+
+      <FooterPanel
+        fontSize={appState.fontSize}
         setFontSize={setFontSize}
         setNewSession={handleNewSession}
         setTimer={handleSetTimer}
         onShowHistory={toggleHistory}
+        viewMode={appState.viewMode}
+        setViewMode={setViewMode}
       />
 
       {showHistory && (
@@ -239,9 +260,9 @@ const removeNotification = (id: number) => {
         />
       )}
       <NotificationContainer
-  notifications={notifications}
-  removeNotification={removeNotification}
-/>
+        notifications={notifications}
+        removeNotification={removeNotification}
+      />
     </div>
   );
 }
